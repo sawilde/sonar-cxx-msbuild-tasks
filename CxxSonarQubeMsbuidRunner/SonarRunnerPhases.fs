@@ -297,7 +297,7 @@ let BeginPhase(options : OptionsData) =
             options.SonarUserName
 
     let userPass = 
-        if options.SonarUserPassword = "" then
+        if options.SonarUserPassword = "" && not options.SonarToken then
             HelpersMethods.cprintf(ConsoleColor.Yellow, "password not specified. using default: admin")
             "admin"
         else
@@ -314,12 +314,13 @@ let BeginPhase(options : OptionsData) =
     HelpersMethods.cprintf(ConsoleColor.DarkCyan, "###################################")
 
     if options.IsVerboseOn then
-        HelpersMethods.cprintf(ConsoleColor.Blue, (sprintf "[Execute] : %s begin /d:sonar.verbose=true /d:sonar.host.url=%s /d:sonar.login=%s /d:sonar.password=xxxxx %s %s\r\n" options.MSBuildRunnerPath hostUrl userName arguments branchtopass))
-        (executor :> ICommandExecutor).ExecuteCommand(options.MSBuildRunnerPath, "begin /d:sonar.verbose=true " + "/d:sonar.host.url=" + hostUrl + " /d:sonar.login=" + userName + " /d:sonar.password=" + userPass + " " + arguments + " " + branchtopass, Map.empty, ProcessOutputDataReceived, ProcessOutputDataReceived, options.HomePath)
+        HelpersMethods.cprintf(ConsoleColor.Blue, (sprintf "[Execute] : %s begin /d:sonar.verbose=true /d:sonar.host.url=%s /d:sonar.login=%s /d:sonar.password=<<hidden>> %s %s\r\n" options.MSBuildRunnerPath hostUrl userName arguments branchtopass))
     else
-        HelpersMethods.cprintf(ConsoleColor.Blue, (sprintf "[Execute] : %s begin /d:sonar.host.url=%s /d:sonar.login=%s /d:sonar.password=xxxxx %s %s\r\n" options.MSBuildRunnerPath hostUrl userName arguments branchtopass))
-        (executor :> ICommandExecutor).ExecuteCommand(options.MSBuildRunnerPath, "begin " + "/d:sonar.host.url=" + hostUrl + " /d:sonar.login=" + userName + " /d:sonar.password=" + userPass + " " + arguments + " " + branchtopass, Map.empty, ProcessOutputDataReceived, ProcessOutputDataReceived, options.HomePath)
-    
+        HelpersMethods.cprintf(ConsoleColor.Blue, (sprintf "[Execute] : %s begin /d:sonar.host.url=%s %s %s\r\n" options.MSBuildRunnerPath hostUrl arguments branchtopass))
+
+    let strings = [| "begin "; (if options.IsVerboseOn then "/d:sonar.verbose=true " else " "); "/d:sonar.host.url=" + hostUrl + " /d:sonar.login=" + userName; (if not options.SonarToken then " /d:sonar.password=" + userPass else ""); " " + arguments + " " + branchtopass |]
+    (executor :> ICommandExecutor).ExecuteCommand(options.MSBuildRunnerPath, System.String.Concat(strings), Map.empty, ProcessOutputDataReceived, ProcessOutputDataReceived, options.HomePath)
+
 let EndPhase(options : OptionsData) =
 
     let hostUrl =
@@ -337,7 +338,7 @@ let EndPhase(options : OptionsData) =
             options.SonarUserName
 
     let password = 
-        if options.SonarUserPassword = "" then
+        if options.SonarUserPassword = "" && not options.SonarToken then
             HelpersMethods.cprintf(ConsoleColor.Yellow, "password not specified. using default: admin")
             "admin"
         else
@@ -423,9 +424,14 @@ let EndPhase(options : OptionsData) =
             raise(new Exception("Failed to execute server analysis"))
     
 
-    HelpersMethods.cprintf(ConsoleColor.Blue, (sprintf "[EndPhase] : %s end /d:sonar.login=%s /d:sonar.password=xxxxx" options.MSBuildRunnerPath username))
-    let returncode = (executor :> ICommandExecutor).ExecuteCommand(options.MSBuildRunnerPath, "end /d:sonar.login=" + username + " /d:sonar.password=" + password, Map.empty, ProcessEndPhaseData, ProcessEndPhaseData, options.HomePath)
-    
+    if options.IsVerboseOn then
+        HelpersMethods.cprintf(ConsoleColor.Blue, (sprintf "[EndPhase] : %s end /d:sonar.login=%s /d:sonar.password=<<hidden>>\r\n" options.MSBuildRunnerPath username ))
+    else
+        HelpersMethods.cprintf(ConsoleColor.Blue, (sprintf "[EndPhase] : %s end \r\n" options.MSBuildRunnerPath))
+
+    let strings = [| "end "; " /d:sonar.login=" + username; (if not options.SonarToken then " /d:sonar.password=" + password else "") |]
+    let returncode = (executor :> ICommandExecutor).ExecuteCommand(options.MSBuildRunnerPath, System.String.Concat(strings), Map.empty, ProcessEndPhaseData, ProcessEndPhaseData, options.HomePath)
+
     if returncode = 0 then
         if urlForChecking <> "" then
             printf  "[EndPhase] : Check Analysis Results in Server every 2 seconds\r\n"

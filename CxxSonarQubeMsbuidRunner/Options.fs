@@ -286,6 +286,7 @@ type OptionsData(args : string []) =
     member val SonarUserName : string = "" with get, set
     member val SonarUserPassword : string = "" with get, set
     member val Branch : string = "" with get, set
+    member val SonarToken : bool = false with get, set
 
     member val ProjectKey : string = "" with get, set
     member val ProjectName : string = "" with get, set
@@ -443,12 +444,17 @@ type OptionsData(args : string []) =
             for prop in data.Properties do
                 if prop.Name.Equals("sonar.host.url") then
                     this.SonarHost <- prop.Value
-                if prop.Name.Equals("sonar.login") then
+                if prop.Name.Equals("sonar.login") && not this.SonarToken then
                     this.SonarUserName <- prop.Value
-                if prop.Name.Equals("sonar.password") then
+                if prop.Name.Equals("sonar.password") && not this.SonarToken then
                     this.SonarUserPassword <- prop.Value
                 if prop.Name.Equals("sonar.branch") then
-                    this.Branch <- prop.Value           
+                    this.Branch <- prop.Value 
+                if prop.Name.Equals("sonar.token") then
+                    this.SonarUserName <- prop.Value
+                    this.SonarUserPassword <- ""
+                    this.SonarToken <- true
+                                         
         with
         | _ -> ()
 
@@ -471,21 +477,29 @@ type OptionsData(args : string []) =
             this.SonarUserPassword <- this.PropsInSettingsFile.["sonar.password"]
         if this.PropsInSettingsFile.ContainsKey("sonar.branch") then
             this.Branch <- this.PropsInSettingsFile.["sonar.branch"]
+        if this.PropsInSettingsFile.ContainsKey("sonar.token") then
+                this.SonarUserName <- this.PropsInSettingsFile.["sonar.token"]
+                this.SonarUserPassword <- ""
+                this.SonarToken <- true
 
         this.PropsForBeginStage <- 
             let mutable args = ""
             if arguments.ContainsKey("d") then
                 for arg in arguments.["d"] do
                     if arg <> "" then
-                        if arg.StartsWith("sonar.login") || arg.StartsWith("sonar.password") ||  arg.StartsWith("sonar.host.url") ||  arg.StartsWith("sonar.branch") then
-                            if arg.StartsWith("sonar.login") then
+                        if arg.StartsWith("sonar.login") || arg.StartsWith("sonar.password") ||  arg.StartsWith("sonar.host.url") ||  arg.StartsWith("sonar.branch") ||  arg.StartsWith("sonar.token") then
+                            if arg.StartsWith("sonar.login") && not this.SonarToken then
                                 this.SonarUserName <- arg.Replace("sonar.login=", "")
-                            if arg.StartsWith("sonar.password") then
+                            if arg.StartsWith("sonar.password") && not this.SonarToken then
                                 this.SonarUserPassword <- arg.Replace("sonar.password=", "")
                             if arg.StartsWith("sonar.host.url") then
                                 this.SonarHost <- arg.Replace("sonar.host.url=", "")
                             if arg.StartsWith("sonar.branch") then
                                 this.Branch <- arg.Replace("sonar.branch=", "")
+                            if arg.StartsWith("sonar.token") then
+                                this.SonarUserName <- arg.Replace("sonar.token=", "")
+                                this.SonarUserPassword <- ""
+                                this.SonarToken <- true
                         else
                             args <- args + " /d:" + arg
 
@@ -510,7 +524,7 @@ type OptionsData(args : string []) =
 
             let GetConnectionToken(service : ISonarRestService, address : string , userName : string, password : string) = 
                 let pass =
-                    if this.SonarUserPassword = "" then
+                    if this.SonarUserPassword = "" && not this.SonarToken then
                         "admin"
                     else
                         this.SonarUserPassword
@@ -599,7 +613,7 @@ type OptionsData(args : string []) =
 
             let GetConnectionToken(service : ISonarRestService, address : string , userName : string, password : string) = 
                 let pass =
-                    if this.SonarUserPassword = "" then
+                    if this.SonarUserPassword = "" && not this.SonarToken then
                         "admin"
                     else
                         this.SonarUserPassword
